@@ -1,15 +1,38 @@
 <?php
+/*
+$holidays = get_holiday_requests();
+foreach ($holidays as $holiday){
+	$holiday_request_from = new DateTime(get_holiday_request_from($holiday->ID));
+	$holiday_request_to = new DateTime(get_holiday_request_to($holiday->ID));
+
+	update_post_meta( $holiday->ID, '_holiday_request_from', $holiday_request_from->format('Y-m-d') );
+	update_post_meta( $holiday->ID, '_holiday_request_to', $holiday_request_to->format('Y-m-d') );
+
+}
+*/
+if (isset($_GET['update_status']) && wp_verify_nonce($_GET['update_status'], 'approve')) {
+	
+	wp_set_object_terms( $post->ID, 'approve', 'flexitime_request_status', false );
+	update_post_meta( $post->ID, '_flexitime_request_status', 'approve' );
+	send_notification_email($post);
+	wp_redirect( home_url() ); exit;
+}
 if (isset($_POST['_edit_holiday_request_nonce']) && wp_verify_nonce($_POST['_edit_holiday_request_nonce'], $post->ID)){
 	$holiday_request_status = sanitize_text_field( $_POST['_holiday_request_status'] );
 	wp_set_object_terms( $post->ID, $holiday_request_status, 'holiday_request_status', false );
 	update_post_meta( $post->ID, '_holiday_request_status', $holiday_request_status );
 	$msg = 'Updated!!';
+	send_notification_email($post);
 }
 if (isset($_GET['_cancel_nonce']) && wp_verify_nonce($_GET['_cancel_nonce'], $post->ID)){
 	wp_set_object_terms( $post->ID, 'cancelled', 'holiday_request_status', false );
 	update_post_meta( $post->ID, '_holiday_request_status', 'cancelled' );
 	$msg = 'Updated!!';
+	send_notification_email($post);
 }
+
+$user_id = get_current_user_id();
+$current_user = get_userdata( $user_id );
 
 $request_type = get_holiday_request_type($post->ID);
 $request_status = get_holiday_request_status($post->ID);
@@ -143,7 +166,7 @@ if(isset($_GET['pdf']) && $_GET['pdf'] == $post->ID):
 	
 	$pdf->Output(sanitize_title($post->post_title).'.pdf', 'I');
 
-elseif(current_user_can( 'manage_options' )):?>
+elseif(current_user_can( 'manage_options' ) || (current_user_can( 'manage_holidays' ) && $current_user->ID != $post->post_author )):?>
 <?php get_header(); ?>
 
 <div id="content" class="content clearfix" role="main">
@@ -241,7 +264,11 @@ elseif(current_user_can( 'manage_options' )):?>
                 <div class="container">
                     <div class="row">
                         <div class="col-xs-6">
+                        	<?php if($_GET['home'] == 1):?>
+                            <p><a href="<?php echo home_url('/');?>" class="button">Back</a></p>
+                            <?php else:?>
                             <p><a href="<?php echo home_url('/');?>?user_id=<?php echo $user->ID;?>" class="button">Back</a></p>
+                            <?php endif;?>
                         </div>
                         <div class="col-xs-6">
                         	<p class="text-right"><input type="submit" name="holiday-request" class="button" value="Update"></p>
@@ -334,10 +361,10 @@ elseif(current_user_can( 'manage_options' )):?>
             <div class="container">
             	<div class="row">
                 	<div class="col-xs-6">
-						<p><a href="<?php echo home_url('/');?>" class="button">Back</a></p>
+						<p><a href="<?php echo home_url('/');?>?user_id=<?php echo $user->ID;?>" class="button">Back</a></p>
                     </div>
                     <div class="col-xs-6">
-                    	<?php if($request_status->slug == 'pending-approval'):?>
+                    	<?php if($request_status->slug == 'pending-approval' || $request_status->slug == 'approved'):?>
 						<p class="text-right"><a href="<?php echo wp_nonce_url( get_permalink($post->ID), $post->ID, '_cancel_nonce' );?>" class="button">Cancel Request</a></p>
                         <?php endif;?>
                     </div>

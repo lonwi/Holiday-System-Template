@@ -122,6 +122,7 @@ if ( !function_exists( 'register_company' ) ) {
 	function register_company() {
 		register_taxonomy( 'company',array (
 		  0 => 'holiday',
+		  1 => 'flexitime',
 		),
 		array( 'hierarchical' => true,
 			'label' => __('Company', 'websquare'),
@@ -193,6 +194,7 @@ if ( !function_exists( 'register_holiday_request_status' ) ) {
 
 function remove_post_custom_fields() {
 	remove_meta_box( 'holiday_request_statusdiv' , 'holiday' , 'side' ); 
+	remove_meta_box( 'flexitime_request_statusdiv' , 'flexitime' , 'side' ); 
 }
 add_action( 'admin_menu' , 'remove_post_custom_fields' );
 
@@ -239,16 +241,18 @@ if ( !function_exists( 'holiday_request_status_meta_box_markup' ) ) {
         
         <div class="clearfix"><p><strong>From:</strong> <?php echo mysql2date('l, jS F Y', $request_from);?> <a href="#" class="change-request" data-container=".change-request-from-container">(edit)</a></p>
         	<div class="change-request-from-container hidden">
+            	<p style="font-size:12px">Please use YYYY-MM-DD format only</p>
             	<input type="text" name="_holiday_request_from" value="<?php echo $request_from;?>" placeholder="YYYY-MM-DD">
             </div>
         </div>
         
         <div class="clearfix"><p><strong>To:</strong> <?php echo mysql2date('l, jS F Y', $request_to);?> <a href="#" class="change-request" data-container=".change-request-to-container">(edit)</a></p>
         	<div class="change-request-to-container hidden">
+            	<p style="font-size:12px">Please use YYYY-MM-DD format only</p>
             	<input type="text" name="_holiday_request_to" value="<?php echo $request_to;?>"  placeholder="YYYY-MM-DD">
             </div>
         </div>
-        <div class="clearfix"><p><strong>Request Date:</strong> <?php echo mysql2date('l, jS F Y', $post->post_date);?></p></div>
+        <div class="clearfix"><p><strong>Requested on:</strong> <?php echo mysql2date('l, jS F Y', $post->post_date);?></p></div>
         
         <div class="clearfix"><p><strong>Holiday Year:</strong> <?php echo $year;?>  <a href="#" class="change-request" data-container=".change-request-year">(edit)</a></p>
         	<div class="change-request-year hidden">
@@ -378,19 +382,20 @@ if ( !function_exists('save_extra_fields_to_user') ) {
 //add_action('template_redirect', 'process_holiday_request');
 if ( !function_exists( 'process_holiday_request' ) ) {
 	function process_holiday_request(){
-		
-		if(isset($_POST['holiday-request']) && !empty($_POST['holiday-request']) && wp_verify_nonce( $_POST['holiday_request_form_nonce_field'], 'holiday_request_form' ) ){
+
+		if(isset($_POST['holiday-request']) && !empty($_POST['holiday-request']) ){
 			
 			if(isset($_POST['field-from-dd']) && isset($_POST['field-from-mm']) && isset($_POST['field-from-yyyy']) && is_numeric($_POST['field-from-dd']) && is_numeric($_POST['field-from-mm']) && is_numeric($_POST['field-from-yyyy'])){
-				$holiday_request_from = sanitize_text_field( sprintf("%02d",$_POST['field-from-dd']) .'-' . sprintf("%02d",$_POST['field-from-mm']) .'-'. sprintf("%04d",$_POST['field-from-yyyy']));
+				//$holiday_request_from = sanitize_text_field( sprintf("%02d",$_POST['field-from-dd']) .'-' . sprintf("%02d",$_POST['field-from-mm']) .'-'. sprintf("%04d",$_POST['field-from-yyyy']));
+				$holiday_request_from = sanitize_text_field( sprintf("%04d",$_POST['field-from-yyyy']) .'-' . sprintf("%02d",$_POST['field-from-mm']) .'-'. sprintf("%02d",$_POST['field-from-dd']));
 				$yearfrom = sprintf("%04d",$_POST['field-from-yyyy']);
 			}else{
 				return false;
 			}
 			
-			
 			if(isset($_POST['field-to-dd']) && isset($_POST['field-to-mm']) && isset($_POST['field-to-yyyy']) && is_numeric($_POST['field-to-dd']) && is_numeric($_POST['field-to-mm']) && is_numeric($_POST['field-to-yyyy'])){
-				$holiday_request_to = sanitize_text_field( sprintf("%02d",$_POST['field-to-dd']) .'-' . sprintf("%02d",$_POST['field-to-mm']) .'-'. sprintf("%04d",$_POST['field-to-yyyy']));
+				//$holiday_request_to = sanitize_text_field( sprintf("%02d",$_POST['field-to-dd']) .'-' . sprintf("%02d",$_POST['field-to-mm']) .'-'. sprintf("%04d",$_POST['field-to-yyyy']));
+				$holiday_request_to = sanitize_text_field( sprintf("%04d",$_POST['field-to-yyyy']) .'-' . sprintf("%02d",$_POST['field-to-mm']) .'-'. sprintf("%02d",$_POST['field-to-dd']));
 				$yearto = sprintf("%04d",$_POST['field-to-yyyy']);
 			}else{
 				return false;
@@ -466,7 +471,11 @@ if ( !function_exists( 'process_holiday_request' ) ) {
 					$company_term = get_term_by('slug', $company, 'company' );
 					$company_email = get_term_meta( $company_term->term_id, '_company_email', true );
 					
-					$mailTo = $company_email;
+					if(user_can($user_id, 'manage_options' )){
+						$mailTo = $company_email.',tanveer@websquare.co.uk';
+					}else{
+						$mailTo = $company_email;
+					}
 
 					$subject = "New Holiday Request - ".$current_user->first_name.' '.$current_user->last_name;
 					$body = "New Holiday Request: ".get_permalink($post_id);
@@ -477,6 +486,7 @@ if ( !function_exists( 'process_holiday_request' ) ) {
 				}else{
 					return false;
 				}
+				
 				
 			}else{
 				return false;
@@ -524,7 +534,33 @@ if ( !function_exists( 'get_sick_days' ) ) {
 		return $result;
 	}
 }
-
+/* Calculate Unpaid Days */
+if ( !function_exists( 'get_unpaid_days' ) ) {
+	function get_unpaid_days( $user_id, $year = null ){
+		if(empty($year)) $year = date('Y');
+		
+		$args = array(
+			'posts_per_page'			=> -1,
+			'author'					=> $user_id,
+			'post_type'        			=> 'holiday',
+			'holiday_request_status' 	=> 'approved',
+			'holiday_type' 				=> 'unpaid',
+			'meta_key'					=> '_holiday_year',
+			'meta_value'				=> $year,
+		);
+		
+		$result = 0;
+		
+		$holiday_requests = get_posts($args);
+		
+		if(isset($holiday_requests) && !empty($holiday_requests)){
+			foreach($holiday_requests as $holiday_request){
+				$result = $result + get_holiday_request_days($holiday_request->ID);
+			}
+		}
+		return $result;
+	}
+}
 /* Calculate Holidays Used */
 if ( !function_exists( 'get_holidays_used' ) ) {
 	function get_holidays_used( $user_id, $year = null ){
@@ -559,7 +595,6 @@ if ( !function_exists( 'get_holidays_left' ) ) {
 		$holidays_used = get_holidays_used( $user_id, $year );
 		
 		$result = $holiday_allowance - $holidays_used;
-		
 		return $result;
 	}
 }
@@ -583,7 +618,7 @@ if ( !function_exists( 'get_holiday_request_types' ) ) {
 /* Get Request Type */
 if ( !function_exists( 'get_holiday_request_type' ) ) {
 	function get_holiday_request_type( $post_id ){
-		
+	
 		$holiday_request_types = get_holiday_request_types();
 		
 		if(isset($holiday_request_types) && !empty($holiday_request_types)){
@@ -598,7 +633,6 @@ if ( !function_exists( 'get_holiday_request_type' ) ) {
 		}
 	}
 }
-
 
 /* Get Request Statuses */
 if ( !function_exists( 'get_holiday_request_statuses' ) ) {
@@ -661,23 +695,40 @@ if ( !function_exists( 'get_holiday_year' ) ) {
 
 /* Get Holiday Requests */
 if ( !function_exists( 'get_holiday_requests' ) ) {
-	function get_holiday_requests( $user_id = null, $status = null ){
+	function get_holiday_requests( $user_id = null, $status = null, $year = null, $compare = null ){
 
 		$args = array(
 			'posts_per_page'	=> -1,
 			'post_type'        	=> 'holiday',
+			'meta_key' 			=> '_holiday_request_from',
+		  	'orderby' 			=> 'meta_value',
+		    'order' 			=> 'DESC'
 		);
 		if($user_id > 0) {
 			$args['author'] = $user_id;
 		}
 		if($status){
-			$args['meta_key'] = '_holiday_request_status';
-			$args['meta_value'] = $status;
+			$meta_query[] = array(
+				'key' 		=> '_holiday_request_status',
+				'value' 	=> $status,
+			);
 		}
+		if($year && !$compare){
+			$meta_query[] = array(
+				'key' 		=> '_holiday_year',
+				'value' 	=> $year,
+			);
+		}
+		if($year && $compare){
+			$meta_query[] = array(
+				'key' 		=> '_holiday_year',
+				'value' 	=> $year,
+				'compare'	=> $compare,
+			);
+		}
+		$args['meta_query'] = $meta_query;
 		$holiday_requests = get_posts($args);
-		
 		$result = $holiday_requests;
-
 		return $result;
 	}
 }
@@ -698,21 +749,288 @@ if ( !function_exists( 'get_next_holiday' ) ) {
 		$holiday_requests = get_posts($args);
 		
 		if(isset($holiday_requests) && !empty($holiday_requests)){
-			$date = date('Y-m-d');
+			$date = strtotime(date('Y-m-d'));
 			foreach($holiday_requests as $holiday_request){
-				$day = get_holiday_request_from($holiday_request->ID);
+				$day = strtotime(get_holiday_request_from($holiday_request->ID));
 				if($day >= $date){
-					$interval[] = abs(strtotime($date) - strtotime($day));
+					$temp[] = $holiday_request;
+					$interval[] = abs($date - $day);
 				}
 			}
-			asort($interval);
-			$closest = key($interval);
-			$result = $holiday_requests[$closest];
+			if(isset($interval)){
+				asort($interval);
+				$closest = key($interval);
+				$result = $temp[$closest];
+			}else{
+				$result = null;
+			}
 		}else{
 			$result = null;
 		}
-
 		return $result;
 	}
 }
+
+/* Send Notification Email */
+if ( !function_exists( 'send_notification_email' ) ) {
+	function send_notification_email( $post ){
+		
+		$post_author = get_userdata( $post->post_author );
+		$mailTo = $post_author->data->user_email;
+		
+		$request_name = ucfirst($post->post_type);
+		
+		switch ($post->post_type) {
+			case "holiday":
+				
+				$request_status = get_holiday_request_status($post->ID);
+				$request_from = mysql2date('l, jS F Y', get_holiday_request_from($post->ID));
+				$request_to = mysql2date('l, jS F Y', get_holiday_request_to($post->ID));
+				
+				$body = $request_name." Request has been ".$request_status->name.".\n\n".$request_name." Start Date: ".$request_from."\n".$request_name." End Date: ".$request_to."\n\n".get_permalink($post_id);
+				
+				break;
+			case "flexitime":
+				$request_status = get_flexitime_request_status($post->ID);
+				$requested_date = mysql2date('l, jS F Y', get_flexitime_request_date($post->ID));
+				$requested_on = mysql2date('l, jS F Y', $post->post_date);
+				
+				$body = $request_name." Request has been ".$request_status->name.".\n\n".$request_name." Requested Date: ".$requested_date."\n".$request_name." Date of Request: ".$requested_on."\n\n".get_permalink($post_id);
+				
+				break;
+			default:
+				$request_name = "";
+				$body = "";
+		}
+
+		$subject = "Your ".$request_name." request status has changed to ".$request_status->name;
+		
+		wp_mail($mailTo, utf8_decode($subject), utf8_decode($body));
+		
+		$company = get_holiday_company($post->post_author);
+		if($company){
+			$company_term = get_term_by('slug', $company, 'company' );
+			$company_email = get_term_meta( $company_term->term_id, '_company_email', true );
+			$mailTo = $company_email;
+			$subject = "Update:  ".$request_name." request status has changed to ".$request_status->name;
+			wp_mail($mailTo, utf8_decode($subject), utf8_decode($body));
+		}
+		
+	}
+}
+
+/* Get Users On Holiday */
+if ( !function_exists( 'get_users_on_holiday' ) ) {
+	function get_users_on_holiday( $user_id ){
+		
+		$holiday_company = get_holiday_company( $user_id );	
+		$date = strtotime(date('Y-m-d'));	
+		$roles = array('employee', 'manager');
+		$employees = array();
+		$result = '';
+		
+		foreach ($roles as $role) {
+			$users = get_users(array('role'=> $role, 'orderby'=>'display_name', 'meta_key' => '_holiday_company', 'meta_value' => $holiday_company));
+			if ($users) $employees = array_merge($employees, $users);
+		
+		}
+		foreach($employees as $employee){
+			
+			$args = array(
+				'posts_per_page'	=> -1,
+				'author'			=> $employee->ID,
+				'post_type'        	=> 'holiday',
+				'meta_query' => array(
+					array(
+						'key' => '_holiday_request_status',
+						'value' => 'approved',
+					),
+					array(
+						'key' => '_holiday_year',
+						'value' => date('Y'),
+					),
+				)
+			);
+
+			$holiday_requests = get_posts($args);
+			
+			foreach($holiday_requests as $holiday_request){
+				$request_from = strtotime(get_holiday_request_from($holiday_request->ID));
+				$request_to = strtotime(get_holiday_request_to($holiday_request->ID));
+				
+				if($date <= $request_to && $date >= $request_from ){
+					$days = get_holiday_request_days($holiday_request->ID);
+					if($days > 0){
+						$days = '('.$days.' days)';
+					}else{
+						$days = '('.$days.' day)';
+					}
+					$result .= '<h4>'.$employee->first_name . ' ' . $employee->last_name.'</h4>';
+					$result .= '<p>'.mysql2date('D, jS M Y', get_holiday_request_from($holiday_request->ID)).' -- '.mysql2date('D, jS M Y', get_holiday_request_to($holiday_request->ID)).' '.$days.'</p>';
+				}
+				
+			}
+			
+		}
+		
+		return $result;
+	}
+}
+
+/* Get Users Paid Holidays for specified month */
+
+if ( !function_exists( 'get_paid_holidays_by_month' ) ) {
+	function get_paid_holidays_by_month( $user_id, $month, $year ){
+		$result = 0;
+
+		$args = array(
+			'posts_per_page'	=> -1,
+			'post_type'        	=> 'holiday',
+			'tax_query' 		=> array(
+				array(
+					'taxonomy' 	=> 'holiday_type',
+					'field'   	=> 'slug',
+					'terms'    	=> 'paid',
+				),
+			),
+			'meta_query' => array(
+				array(
+					'key' 		=> '_holiday_request_status',
+					'value' 	=> 'approved',
+				),
+				array(
+					'key' 		=> '_holiday_year',
+					'value' 	=> $year,
+				),
+			)
+		);
+		if($user_id > 0) {
+			$args['author'] = $user_id;
+		}
+		if($paid_holidays_requests = get_posts($args)){
+			foreach($paid_holidays_requests as $paid_holiday){
+				$holiday_request_days = get_post_meta($paid_holiday->ID, _holiday_request_days, true);
+				$holiday_request_from = date('m', strtotime(get_post_meta($paid_holiday->ID, _holiday_request_from, true)));
+				$holiday_request_to = date('m', strtotime(get_post_meta($paid_holiday->ID, _holiday_request_to, true)));
+				if($holiday_request_from == $month || $holiday_request_to == $month){
+					if($holiday_request_days == 1){
+						$result = $result + $holiday_request_days;
+					}elseif($holiday_request_days > 1){
+						if($holiday_request_from == $holiday_request_to){
+							$result = $result + $holiday_request_days;
+						}else{
+							print_result($sickday);
+						}
+					}
+				}
+			}
+		}
+		return $result;
+	}
+}
+
+/* Get Users Sickdays for specified month */
+
+if ( !function_exists( 'get_sickdays_by_month' ) ) {
+	function get_sickdays_by_month( $user_id, $month, $year ){
+		$result = 0;
+
+		$args = array(
+			'posts_per_page'	=> -1,
+			'post_type'        	=> 'holiday',
+			'tax_query' 		=> array(
+				array(
+					'taxonomy' 	=> 'holiday_type',
+					'field'   	=> 'slug',
+					'terms'    	=> 'sickness',
+				),
+			),
+			'meta_query' => array(
+				array(
+					'key' 		=> '_holiday_request_status',
+					'value' 	=> 'approved',
+				),
+				array(
+					'key' 		=> '_holiday_year',
+					'value' 	=> $year,
+				),
+			)
+		);
+		if($user_id > 0) {
+			$args['author'] = $user_id;
+		}
+		if($sickdays_requests = get_posts($args)){
+			foreach($sickdays_requests as $sickday){
+				$holiday_request_days = get_post_meta($sickday->ID, _holiday_request_days, true);
+				$holiday_request_from = date('m', strtotime(get_post_meta($sickday->ID, _holiday_request_from, true)));
+				$holiday_request_to = date('m', strtotime(get_post_meta($sickday->ID, _holiday_request_to, true)));
+				if($holiday_request_from == $month || $holiday_request_to == $month){
+					if($holiday_request_days == 1){
+						$result = $result + $holiday_request_days;
+					}elseif($holiday_request_days > 1){
+						if($holiday_request_from == $holiday_request_to){
+							$result = $result + $holiday_request_days;
+						}else{
+							print_result($sickday);
+						}
+					}
+				}
+			}
+		}
+		return $result;
+	}
+}
+
+/* Get Users Unpaid Holidays for specified month */
+
+if ( !function_exists( 'get_unpaid_holidays_by_month' ) ) {
+	function get_unpaid_holidays_by_month( $user_id, $month, $year ){
+		$result = 0;
+
+		$args = array(
+			'posts_per_page'	=> -1,
+			'post_type'        	=> 'holiday',
+			'tax_query' 		=> array(
+				array(
+					'taxonomy' 	=> 'holiday_type',
+					'field'   	=> 'slug',
+					'terms'    	=> 'unpaid',
+				),
+			),
+			'meta_query' => array(
+				array(
+					'key' 		=> '_holiday_request_status',
+					'value' 	=> 'approved',
+				),
+				array(
+					'key' 		=> '_holiday_year',
+					'value' 	=> $year,
+				),
+			)
+		);
+		if($user_id > 0) {
+			$args['author'] = $user_id;
+		}
+		if($unpaid_requests = get_posts($args)){
+			foreach($unpaid_requests as $unpaid){
+				$holiday_request_days = get_post_meta($unpaid->ID, _holiday_request_days, true);
+				$holiday_request_from = date('m', strtotime(get_post_meta($unpaid->ID, _holiday_request_from, true)));
+				$holiday_request_to = date('m', strtotime(get_post_meta($unpaid->ID, _holiday_request_to, true)));
+				if($holiday_request_from == $month || $holiday_request_to == $month){
+					if($holiday_request_days == 1){
+						$result = $result + $holiday_request_days;
+					}elseif($holiday_request_days > 1){
+						if($holiday_request_from == $holiday_request_to){
+							$result = $result + $holiday_request_days;
+						}else{
+							print_result($unpaid);
+						}
+					}
+				}
+			}
+		}
+		return $result;
+	}
+}
+
 ?>

@@ -19,3 +19,4 @@ require_once dirname( __FILE__ ) . '/includes/tcpdf/tcpdf.php';
 
 
 require_once dirname( __FILE__ ) . '/includes/functions/functions-holiday.php';
+require_once dirname( __FILE__ ) . '/includes/functions/functions-flexitime.php';

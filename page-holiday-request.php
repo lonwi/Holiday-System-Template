@@ -64,8 +64,7 @@ $process_holiday_request = process_holiday_request();
                     
                     <div class="col-xs-12">
                     	
-                        <form id="holiday-request-form" name="holiday-request-form" method="post" action="<?php echo get_permalink();?>">
-                        	<?php wp_nonce_field( 'holiday_request_form', 'holiday_request_form_nonce_field' ); ?>
+                        <form id="holiday-request-form" name="holiday-request-form" method="post" action="<?php echo get_permalink();?>?user_id=<?php echo $user_id;?>">
                             <input type="hidden" name="_holiday_request_status" value="pending-approval">
                             <input type="hidden" name="_user_id" value="<?php echo $user_id;?>">
                             <input type="hidden" name="_company" value="<?php echo get_holiday_company($user_id);?>">
@@ -76,15 +75,22 @@ $process_holiday_request = process_holiday_request();
                                         <label>From: <span class="required">*</span></label>
                                         <div class="row">
                                         
-                                            <div class="col-xs-4">
+                                        	<div class="col-xs-2">
+                                            	<a href="#" class="field-from-datepicker"><i class="fa fa-calendar fa-3x"></i>
+</a>
+                                            </div>
+                                        
+                                            <div class="col-xs-3">
                                                 <input type="number" id="field-from-dd" name="field-from-dd" placeholder="DD" min="1" max="31" value="<?php echo $_POST['field-from-dd'];?>" required>
                                             </div>
-                                            <div class="col-xs-4">
+                                            <div class="col-xs-3">
                                                 <input type="number" id="field-from-mm" name="field-from-mm" placeholder="MM" min="1" max="12" value="<?php echo $_POST['field-from-mm'];?>" required>
                                             </div>
                                             <div class="col-xs-4">
                                                 <input type="number" id="field-from-yyyy" name="field-from-yyyy" placeholder="YYYY"  min="<?php echo date('Y') - 1;?>" max="<?php echo date('Y') + 5;?>" value="<?php echo $_POST['field-from-yyyy'];?>" required>
                                             </div>
+                                            
+                                            
                                             
                                         </div>
                                     </div>
@@ -92,11 +98,16 @@ $process_holiday_request = process_holiday_request();
                                         <label>To: <span class="required">*</span></label>
                                         
                                         <div class="row">
+                                        	
+                                            <div class="col-xs-2">
+                                            	<a href="#" class="field-to-datepicker"><i class="fa fa-calendar fa-3x"></i>
+</a>
+                                            </div>
                                         
-                                            <div class="col-xs-4">
+                                            <div class="col-xs-3">
                                                 <input type="number" id="field-to-dd" name="field-to-dd" placeholder="DD" min="1" max="31" value="<?php echo $_POST['field-to-dd'];?>" required>
                                             </div>
-                                            <div class="col-xs-4">
+                                            <div class="col-xs-3">
                                                 <input type="number" id="field-to-mm" name="field-to-mm" placeholder="MM" min="1" max="12" value="<?php echo $_POST['field-to-mm'];?>" required>
                                             </div>
                                             <div class="col-xs-4">

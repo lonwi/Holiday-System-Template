@@ -61,6 +61,10 @@ function websquare_theme_css() {
 		
 		// normalize.css v3.0.3
 		wp_register_style( 'normalize-css', THEME_ASSETS . 'css/normalize.css', array(), '3.0.3', 'all' );
+		wp_register_style( 'font-awesome-css', THEME_ASSETS . 'css/font-awesome.min.css', array(), '4.5.0', 'all' );
+		
+		wp_register_style( 'picker-css', 'https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.5.6/compressed/themes/default.css', array(), '3.5.6', 'all' );
+		wp_register_style( 'picker-date-css', 'https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.5.6/compressed/themes/default.date.css', array(), '3.5.6', 'all' );
 		
 		// Main Style Sheet
 		wp_register_style( 'main-css', THEME_ASSETS . 'css/style.css', array(), '1.0.0', 'all' );
@@ -71,6 +75,9 @@ function websquare_theme_css() {
 		// enqueue styles
 		wp_enqueue_style( 'font-open-sans' );
 		wp_enqueue_style( 'normalize-css' );
+		wp_enqueue_style( 'font-awesome-css' );
+		wp_enqueue_style( 'picker-css' );
+		wp_enqueue_style( 'picker-date-css' );
 		wp_enqueue_style( 'main-css' );
 		wp_enqueue_style( 'ie-css' );
 		
@@ -84,6 +91,8 @@ function websquare_theme_js() {
 	if (!is_admin()) {
 		
 		wp_register_script( 'print-js', THEME_ASSETS . 'js/plugins/jQuery.print.js', array( 'jquery' ), '1.3.3', true );
+		wp_register_script( 'picker-js','https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.5.6/compressed/picker.js', array( 'jquery' ), '3.5.6', true );
+		wp_register_script( 'picker-date-js', 'https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.5.6/compressed/picker.date.js', array( 'jquery' ), '3.5.6', true );
 
 		wp_register_script( 'main-js', THEME_ASSETS . 'js/main.js', array( 'jquery' ), '1.0.0', true );
 
@@ -93,6 +102,8 @@ function websquare_theme_js() {
 		wp_enqueue_script( 'jquery' );
 		
 		wp_enqueue_script( 'print-js' );
+		wp_enqueue_script( 'picker-js' );
+		wp_enqueue_script( 'picker-date-js' );
 		wp_enqueue_script( 'main-js' );
 		
 	}
@@ -161,7 +172,7 @@ function websquare_login_failed( $user ) {
 }
 add_action( 'authenticate', 'websquare_blank_login');
 function websquare_blank_login( $user ){
-  	$referrer = $_SERVER['HTTP_REFERER'];
+  	$referrer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
   	$error = false;
   	if($_POST['log'] == '' || $_POST['pwd'] == '')
   	{
